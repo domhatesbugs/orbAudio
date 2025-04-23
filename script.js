@@ -9,7 +9,7 @@ const pauseBtn = document.getElementById("pauseBtn");
 
 panner = audioCtx.createPanner();
 panner.panningModel = 'HRTF';
-panner.setPosition(0, 0, -1); // In front of listener
+panner.setPosition(0, 0, -1);
 
 fileInput.addEventListener("change", async (e) => {
   const file = e.target.files[0];
@@ -36,28 +36,74 @@ pauseBtn.addEventListener("click", () => {
   }
 });
 
-// Drag Orb
+// Orb movement
+let orbX = window.innerWidth / 2;
+let orbY = window.innerHeight / 2;
+let velocityX = 0;
+let velocityY = 0;
+let dragging = false;
+
+function updateOrbPosition() {
+  orb.style.left = `${orbX}px`;
+  orb.style.top = `${orbY}px`;
+
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight / 2;
+
+  // Normalize for panning: map to -10 to 10
+  const normX = ((orbX - centerX) / centerX) * 10;
+  const normY = -((orbY - centerY) / centerY) * 10;
+  panner.setPosition(normX, normY, -1);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (!dragging) {
+    // Spring back to center
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const dx = centerX - orbX;
+    const dy = centerY - orbY;
+
+    velocityX += dx * 0.02;
+    velocityY += dy * 0.02;
+
+    // Apply friction
+    velocityX *= 0.85;
+    velocityY *= 0.85;
+
+    orbX += velocityX;
+    orbY += velocityY;
+
+    if (Math.abs(velocityX) < 0.01) velocityX = 0;
+    if (Math.abs(velocityY) < 0.01) velocityY = 0;
+  }
+
+  updateOrbPosition();
+}
+
+animate();
+
+// Mouse controls
 orb.onmousedown = function (e) {
-  const shiftX = e.clientX - orb.getBoundingClientRect().left;
+  dragging = true;
 
-  function moveAt(pageX) {
-    let x = pageX - shiftX;
-    orb.style.left = `${x}px`;
-    // Calculate -1 to 1 based on window width
-    const relativeX = (x / window.innerWidth) * 2 - 1;
-    panner.setPosition(relativeX * 10, 0, -1);
+  function onMouseMove(ev) {
+    orbX = ev.clientX;
+    orbY = ev.clientY;
+    velocityX = 0;
+    velocityY = 0;
   }
 
-  function onMouseMove(e) {
-    moveAt(e.pageX);
+  function onMouseUp() {
+    dragging = false;
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
   }
 
-  document.addEventListener('mousemove', onMouseMove);
-
-  orb.onmouseup = () => {
-    document.removeEventListener('mousemove', onMouseMove);
-    orb.onmouseup = null;
-  };
+  document.addEventListener("mousemove", onMouseMove);
+  document.addEventListener("mouseup", onMouseUp);
 };
 
 orb.ondragstart = () => false;
