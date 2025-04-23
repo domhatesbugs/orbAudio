@@ -34,6 +34,7 @@ function initRope() {
 
 initRope();
 
+// Resizing canvas to match screen DPI
 function resizeCanvas() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = window.innerWidth * dpr;
@@ -47,6 +48,7 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener("resize", resizeCanvas);
 
+// Physics update
 function verletUpdate(point) {
   const vx = (point.x - point.oldX) * DAMPING;
   const vy = (point.y - point.oldY) * DAMPING;
@@ -59,15 +61,13 @@ function verletUpdate(point) {
 }
 
 function constrainRope() {
-  // First point fixed to center
   points[0].x = centerX;
   points[0].y = centerY;
 
-  // Last point follows orb
   points[points.length - 1].x = orbX;
   points[points.length - 1].y = orbY;
 
-  for (let i = 0; i < 5; i++) { // Solve multiple times for better tension
+  for (let i = 0; i < 5; i++) {
     for (let j = 0; j < points.length - 1; j++) {
       const p1 = points[j];
       const p2 = points[j + 1];
@@ -105,7 +105,6 @@ function drawRope() {
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Optional: draw joints as dots
   for (let p of points) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
@@ -140,7 +139,7 @@ function animate() {
 
 animate();
 
-// Dragging logic
+// Dragging the orb
 orb.onmousedown = () => {
   dragging = true;
 
@@ -162,3 +161,37 @@ orb.onmousedown = () => {
 };
 
 orb.ondragstart = () => false;
+
+// Audio logic
+const audio = new Audio();
+const uploadBtn = document.getElementById("uploadBtn");
+
+uploadBtn.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const objectURL = URL.createObjectURL(file);
+    audio.src = objectURL;
+    audio.play();
+  }
+});
+
+function updateAudioDirection() {
+  if (audio.paused) return;
+
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const panner = audioContext.createPanner();
+  const source = audioContext.createMediaElementSource(audio);
+  source.connect(panner);
+  panner.connect(audioContext.destination);
+
+  panner.panningModel = "HRTF"; // Best for spatial audio
+  panner.setPosition((orbX / canvas.width) * 2 - 1, 0, 0); // X-axis only for simplicity
+
+  if (!audio.paused && audio.currentTime === 0) {
+    audio.play(); // Ensure audio starts if it was paused
+  }
+}
+
+audio.addEventListener("play", () => {
+  setInterval(updateAudioDirection, 50); // Update direction every 50ms
+});
