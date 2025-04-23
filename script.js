@@ -1,97 +1,113 @@
-let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let sourceNode, panner, audioBuffer;
-let isPlaying = false;
-
 const orb = document.getElementById("orb");
-const fileInput = document.getElementById("fileInput");
-const playBtn = document.getElementById("playBtn");
-const pauseBtn = document.getElementById("pauseBtn");
+const canvas = document.getElementById("stringCanvas");
+const ctx = canvas.getContext("2d");
 
-panner = audioCtx.createPanner();
-panner.panningModel = 'HRTF';
-panner.setPosition(0, 0, -1);
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-fileInput.addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (file) {
-    const arrayBuffer = await file.arrayBuffer();
-    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-  }
-});
-
-playBtn.addEventListener("click", () => {
-  if (audioBuffer && !isPlaying) {
-    sourceNode = audioCtx.createBufferSource();
-    sourceNode.buffer = audioBuffer;
-    sourceNode.connect(panner).connect(audioCtx.destination);
-    sourceNode.start();
-    isPlaying = true;
-  }
-});
-
-pauseBtn.addEventListener("click", () => {
-  if (sourceNode && isPlaying) {
-    sourceNode.stop();
-    isPlaying = false;
-  }
-});
-
-// Orb movement
 let orbX = window.innerWidth / 2;
 let orbY = window.innerHeight / 2;
 let velocityX = 0;
 let velocityY = 0;
 let dragging = false;
 
-function updateOrbPosition() {
+// Spring physics constants
+const SPRING_K = 0.01;
+const DAMPING = 0.9;
+const MASS = 1;
+
+// Rope config
+const NUM_SEGMENTS = 20;
+let rope = [];
+
+const centerX = window.innerWidth / 2;
+const centerY = window.innerHeight / 2;
+
+// Initialize rope
+for (let i = 0; i <= NUM_SEGMENTS; i++) {
+  rope.push({
+    x: centerX + (orbX - centerX) * (i / NUM_SEGMENTS),
+    y: centerY + (orbY - centerY) * (i / NUM_SEGMENTS)
+  });
+}
+
+function updateOrbPhysics() {
+  if (!dragging) {
+    const dx = centerX - orbX;
+    const dy = centerY - orbY;
+
+    const forceX = dx * SPRING_K;
+    const forceY = dy * SPRING_K;
+
+    const ax = forceX / MASS;
+    const ay = forceY / MASS;
+
+    velocityX += ax;
+    velocityY += ay;
+
+    velocityX *= DAMPING;
+    velocityY *= DAMPING;
+
+    orbX += velocityX;
+    orbY += velocityY;
+  }
+
   orb.style.left = `${orbX}px`;
   orb.style.top = `${orbY}px`;
+}
 
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
+function updateRope() {
+  // Set last point to orb
+  rope[NUM_SEGMENTS].x = orbX;
+  rope[NUM_SEGMENTS].y = orbY;
 
-  // Normalize for panning: map to -10 to 10
-  const normX = ((orbX - centerX) / centerX) * 10;
-  const normY = -((orbY - centerY) / centerY) * 10;
-  panner.setPosition(normX, normY, -1);
+  // Set first point to center
+  rope[0].x = centerX;
+  rope[0].y = centerY;
+
+  // Relax rope
+  for (let i = 1; i < NUM_SEGMENTS; i++) {
+    const prev = rope[i - 1];
+    const curr = rope[i];
+    const next = rope[i + 1];
+
+    // Midpoint attraction
+    const dx = (prev.x + next.x) / 2 - curr.x;
+    const dy = (prev.y + next.y) / 2 - curr.y;
+
+    curr.x += dx * 0.25;
+    curr.y += dy * 0.25;
+  }
+}
+
+function drawRope() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+  ctx.moveTo(rope[0].x, rope[0].y);
+  for (let i = 1; i <= NUM_SEGMENTS; i++) {
+    ctx.lineTo(rope[i].x, rope[i].y);
+  }
+  ctx.strokeStyle = "#3cf";
+  ctx.lineWidth = 4;
+  ctx.stroke();
 }
 
 function animate() {
   requestAnimationFrame(animate);
-
-  if (!dragging) {
-    // Spring back to center
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    const dx = centerX - orbX;
-    const dy = centerY - orbY;
-
-    velocityX += dx * 0.02;
-    velocityY += dy * 0.02;
-
-    // Apply friction
-    velocityX *= 0.85;
-    velocityY *= 0.85;
-
-    orbX += velocityX;
-    orbY += velocityY;
-
-    if (Math.abs(velocityX) < 0.01) velocityX = 0;
-    if (Math.abs(velocityY) < 0.01) velocityY = 0;
-  }
-
-  updateOrbPosition();
+  updateOrbPhysics();
+  updateRope();
+  drawRope();
 }
 
 animate();
 
-// Mouse controls
-orb.onmousedown = function (e) {
+// Dragging logic
+orb.onmousedown = function () {
   dragging = true;
 
-  function onMouseMove(ev) {
-    orbX = ev.clientX;
-    orbY = ev.clientY;
+  function onMouseMove(e) {
+    orbX = e.clientX;
+    orbY = e.clientY;
     velocityX = 0;
     velocityY = 0;
   }
