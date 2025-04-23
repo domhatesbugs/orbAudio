@@ -5,45 +5,113 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+let dragging = false;
+
 let orbX = window.innerWidth / 2;
 let orbY = window.innerHeight / 2;
 let velocityX = 0;
 let velocityY = 0;
-let dragging = false;
 
-// Spring physics constants
-const SPRING_K = 0.01;
+const centerX = canvas.width / 2;
+const centerY = canvas.height / 2;
+
+const SEGMENT_LENGTH = 20;
+const NUM_SEGMENTS = 30;
 const DAMPING = 0.9;
-const MASS = 1;
 
-// Rope config
-const NUM_SEGMENTS = 20;
-let rope = [];
+// Rope points
+let points = [];
 
-const centerX = window.innerWidth / 2;
-const centerY = window.innerHeight / 2;
-
-// Initialize rope
-for (let i = 0; i <= NUM_SEGMENTS; i++) {
-  rope.push({
-    x: centerX + (orbX - centerX) * (i / NUM_SEGMENTS),
-    y: centerY + (orbY - centerY) * (i / NUM_SEGMENTS)
-  });
+function initRope() {
+  points = [];
+  for (let i = 0; i <= NUM_SEGMENTS; i++) {
+    const t = i / NUM_SEGMENTS;
+    points.push({
+      x: centerX + (orbX - centerX) * t,
+      y: centerY + (orbY - centerY) * t,
+      oldX: centerX + (orbX - centerX) * t,
+      oldY: centerY + (orbY - centerY) * t,
+    });
+  }
 }
 
-function updateOrbPhysics() {
+initRope();
+
+function verletUpdate(point) {
+  const vx = (point.x - point.oldX) * DAMPING;
+  const vy = (point.y - point.oldY) * DAMPING;
+
+  point.oldX = point.x;
+  point.oldY = point.y;
+
+  point.x += vx;
+  point.y += vy;
+}
+
+function constrainRope() {
+  // First point fixed to center
+  points[0].x = centerX;
+  points[0].y = centerY;
+
+  // Last point follows orb
+  points[points.length - 1].x = orbX;
+  points[points.length - 1].y = orbY;
+
+  for (let i = 0; i < 5; i++) { // Solve multiple times for better tension
+    for (let j = 0; j < points.length - 1; j++) {
+      const p1 = points[j];
+      const p2 = points[j + 1];
+
+      let dx = p2.x - p1.x;
+      let dy = p2.y - p1.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const diff = SEGMENT_LENGTH - dist;
+      const percent = diff / dist / 2;
+
+      dx *= percent;
+      dy *= percent;
+
+      if (j !== 0) {
+        p1.x -= dx;
+        p1.y -= dy;
+      }
+
+      if (j !== points.length - 1) {
+        p2.x += dx;
+        p2.y += dy;
+      }
+    }
+  }
+}
+
+function drawRope() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.strokeStyle = "#3cf";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Optional: draw joints as dots
+  for (let p of points) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#0ff";
+    ctx.fill();
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
   if (!dragging) {
     const dx = centerX - orbX;
     const dy = centerY - orbY;
-
-    const forceX = dx * SPRING_K;
-    const forceY = dy * SPRING_K;
-
-    const ax = forceX / MASS;
-    const ay = forceY / MASS;
-
-    velocityX += ax;
-    velocityY += ay;
+    velocityX += dx * 0.01;
+    velocityY += dy * 0.01;
 
     velocityX *= DAMPING;
     velocityY *= DAMPING;
@@ -54,55 +122,15 @@ function updateOrbPhysics() {
 
   orb.style.left = `${orbX}px`;
   orb.style.top = `${orbY}px`;
-}
 
-function updateRope() {
-  // Set last point to orb
-  rope[NUM_SEGMENTS].x = orbX;
-  rope[NUM_SEGMENTS].y = orbY;
-
-  // Set first point to center
-  rope[0].x = centerX;
-  rope[0].y = centerY;
-
-  // Relax rope
-  for (let i = 1; i < NUM_SEGMENTS; i++) {
-    const prev = rope[i - 1];
-    const curr = rope[i];
-    const next = rope[i + 1];
-
-    // Midpoint attraction
-    const dx = (prev.x + next.x) / 2 - curr.x;
-    const dy = (prev.y + next.y) / 2 - curr.y;
-
-    curr.x += dx * 0.25;
-    curr.y += dy * 0.25;
-  }
-}
-
-function drawRope() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
-  ctx.moveTo(rope[0].x, rope[0].y);
-  for (let i = 1; i <= NUM_SEGMENTS; i++) {
-    ctx.lineTo(rope[i].x, rope[i].y);
-  }
-  ctx.strokeStyle = "#3cf";
-  ctx.lineWidth = 4;
-  ctx.stroke();
-}
-
-function animate() {
-  requestAnimationFrame(animate);
-  updateOrbPhysics();
-  updateRope();
+  for (let point of points) verletUpdate(point);
+  constrainRope();
   drawRope();
 }
 
 animate();
 
-// Dragging logic
-orb.onmousedown = function () {
+orb.onmousedown = () => {
   dragging = true;
 
   function onMouseMove(e) {
