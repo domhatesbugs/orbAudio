@@ -2,9 +2,6 @@ const orb = document.getElementById("orb");
 const canvas = document.getElementById("stringCanvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
 let dragging = false;
 
 let orbX = window.innerWidth / 2;
@@ -36,6 +33,19 @@ function initRope() {
 }
 
 initRope();
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+  ctx.scale(dpr, dpr); // Scale for high-DPI
+}
+
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
 
 function verletUpdate(point) {
   const vx = (point.x - point.oldX) * DAMPING;
@@ -130,6 +140,7 @@ function animate() {
 
 animate();
 
+// Dragging logic
 orb.onmousedown = () => {
   dragging = true;
 
