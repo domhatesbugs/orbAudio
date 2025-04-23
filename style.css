@@ -16,11 +16,19 @@ body {
   border-radius: 50%;
   background: radial-gradient(circle, #3cf, #00f);
   position: absolute;
-  top: 40%;
   left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
   cursor: grab;
+  box-shadow: 0 0 20px #3cf;
+  transition: box-shadow 0.2s;
 }
+
+#orb:active {
+  cursor: grabbing;
+  box-shadow: 0 0 30px #0ff;
+}
+
 
 #controls {
   position: absolute;
