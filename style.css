@@ -18,7 +18,8 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  margin-left: -50px;
+  margin-top: -50px;
   cursor: grab;
   box-shadow: 0 0 20px #3cf;
   transition: box-shadow 0.2s;
